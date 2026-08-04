@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="AppIcon.appiconset/Icon-180.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="AppIcon.appiconset/Icon-120.png">
+  <link rel="apple-touch-icon" sizes="76x76"   href="AppIcon.appiconset/Icon-76.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Instrumente">
+  <meta name="theme-color" content="#0c0c24">
+
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Instrumenten-Übersicht</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+<!-- docx & jspdf for export -->
+<script src="https://cdn.jsdelivr.net/npm/docx@9.4.1/build/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#F2F2F7;--surface:#FFFFFF;--surface2:#F2F2F7;
+  --sep:rgba(60,60,67,0.12);--sep2:rgba(60,60,67,0.22);
+  --lbl:#000;--lbl2:rgba(60,60,67,0.6);--lbl3:rgba(60,60,67,0.36);
+  --blue:#007AFF;--blue-l:rgba(0,122,255,0.12);
+  --green:#34C759;--green-l:rgba(52,199,89,0.12);
+  --orange:#FF9500;--orange-l:rgba(255,149,0,0.12);
+  --red:#FF3B30;--red-l:rgba(255,59,48,0.12);
+  --purple:#AF52DE;--purple-l:rgba(175,82,222,0.12);
+  --teal:#32ADE6;--teal-l:rgba(50,173,230,0.12);
+  --yellow:#FFCC00;--yellow-l:rgba(255,204,0,0.12);
+  --r:14px;--rsm:10px;--rlg:18px;--rxl:22px;
+  --sh:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+  --shlg:0 8px 32px rgba(0,0,0,0.10),0 2px 8px rgba(0,0,0,0.05);
+  --tab-h:54px;--topbar-h:52px;
+}
+html{height:100%;height:-webkit-fill-available;}
+body{height:100%;height:-webkit-fill-available;overflow:hidden;position:fixed;width:100%;top:0;left:0;
+  background:var(--bg);color:var(--lbl);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+  -webkit-font-smoothing:antialiased;}
+#app{display:flex;flex-direction:column;height:100%;height:100dvh;
+  width:100%;position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;}
+#topBar{height:calc(var(--topbar-h) + env(safe-area-inset-top));
+  padding-top:calc(env(safe-area-inset-top) + 8px);
+  background:rgba(255,255,255,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--sep);display:flex;align-items:center;
+  padding-left:12px;padding-right:12px;flex-shrink:0;gap:8px;}
+#topBarTitle{flex:1;text-align:center;font-size:1rem;font-weight:700;letter-spacing:-0.02em;}
+#addBtn{background:none;border:none;color:var(--blue);font-size:1.5rem;cursor:pointer;padding:4px 6px;line-height:1;}
+#scrollArea{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:none;}
+#tabBar{height:calc(var(--tab-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
+  flex-shrink:0;background:rgba(255,255,255,0.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--sep);display:flex;align-items:stretch;}
+.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  border:none;background:none;color:var(--lbl3);font-size:0.58rem;font-weight:600;cursor:pointer;
+  transition:color 0.15s;padding:0;-webkit-tap-highlight-color:transparent;}
+.tab-btn.active{color:var(--blue);}
+.tab-icon{font-size:1.3rem;line-height:1;}
+.tab-badge{position:absolute;top:6px;right:calc(50% - 22px);background:var(--red);color:#fff;
+  font-size:0.52rem;font-weight:800;border-radius:99px;padding:1px 5px;min-width:16px;
+  text-align:center;display:none;pointer-events:none;}
+.page{display:none;padding:16px 16px 32px;}
+.page.active{display:block;}
+.page-title{font-size:1.45rem;font-weight:800;letter-spacing:-0.04em;margin-bottom:2px;}
+.page-sub{font-size:0.78rem;color:var(--lbl2);margin-bottom:18px;}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:12px;}
+.card-pad{padding:16px;}
+.card-list-item{padding:13px 16px;border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:12px;}
+.card-list-item:last-child{border-bottom:none;}
+.item-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:1.4rem;flex-shrink:0;overflow:hidden;}
+.item-icon img{width:100%;height:100%;object-fit:cover;}
+.item-body{flex:1;min-width:0;}
+.item-title{font-size:0.88rem;font-weight:600;color:var(--lbl);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.item-sub{font-size:0.72rem;color:var(--lbl2);margin-top:1px;}
+.item-right{text-align:right;flex-shrink:0;}
+.item-amount{font-size:0.9rem;font-weight:700;}
+.item-amount-sub{font-size:0.68rem;color:var(--lbl2);margin-top:1px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.stat-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);padding:14px 12px 12px;}
+.stat-label{font-size:0.65rem;font-weight:600;color:var(--lbl2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.stat-value{font-size:1.45rem;font-weight:800;letter-spacing:-0.04em;line-height:1;}
+.stat-unit{font-size:0.75rem;font-weight:400;color:var(--lbl2);margin-left:2px;}
+.stat-sub{font-size:0.66rem;color:var(--lbl2);margin-top:4px;}
+.form-section{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:12px;}
+.form-section-header{padding:10px 16px 8px;font-size:0.67rem;font-weight:700;color:var(--lbl2);
+  text-transform:uppercase;letter-spacing:.07em;background:var(--surface2);border-bottom:1px solid var(--sep);}
+.form-row{padding:0 16px;border-bottom:1px solid var(--sep);}
+.form-row:last-child{border-bottom:none;}
+.form-label{font-size:0.67rem;font-weight:600;color:var(--lbl2);text-transform:uppercase;letter-spacing:.06em;padding-top:10px;display:block;}
+.form-input{width:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:0.9rem;color:var(--lbl);padding:7px 0 10px;}
+.form-input::placeholder{color:var(--lbl3);}
+.form-input option{background:white;}
+textarea.form-input{resize:vertical;min-height:80px;padding:7px 0 10px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;
+  border-radius:10px;border:none;font-family:inherit;font-size:0.88rem;font-weight:600;
+  cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.btn-blue{background:var(--blue);color:#fff;}
+.btn-blue:active{background:#0055CC;}
+.btn-subtle{background:var(--surface2);color:var(--lbl2);}
+.btn-red{background:var(--red-l);color:var(--red);}
+.btn-green{background:var(--green-l);color:var(--green);}
+.btn-orange{background:var(--orange-l);color:var(--orange);}
+.btn-purple{background:var(--purple-l);color:var(--purple);}
+.btn-sm{padding:6px 11px;font-size:0.76rem;border-radius:8px;}
+.btn-full{width:100%;border-radius:var(--rsm);padding:13px;font-size:0.9rem;margin-top:6px;}
+.segmented{display:flex;background:rgba(118,118,128,0.12);border-radius:9px;padding:2px;margin-bottom:16px;}
+.seg-btn{flex:1;padding:6px 8px;border-radius:7px;border:none;background:transparent;
+  font-family:inherit;font-size:0.8rem;font-weight:600;color:var(--lbl2);cursor:pointer;
+  transition:all 0.18s;text-align:center;}
+.seg-btn.active{background:white;color:var(--lbl);box-shadow:0 1px 4px rgba(0,0,0,0.12);}
+.badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:0.66rem;font-weight:700;}
+.badge-green{background:var(--green-l);color:var(--green);}
+.badge-red{background:var(--red-l);color:var(--red);}
+.badge-orange{background:var(--orange-l);color:var(--orange);}
+.badge-blue{background:var(--blue-l);color:var(--blue);}
+.badge-gray{background:rgba(142,142,147,0.12);color:#8E8E93;}
+.badge-purple{background:var(--purple-l);color:var(--purple);}
+.section-label{font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--lbl2);padding:0 2px;margin-bottom:6px;margin-top:18px;}
+.divider{height:1px;background:var(--sep);margin:8px 0;}
+.empty{text-align:center;padding:32px 16px;color:var(--lbl2);font-size:0.86rem;}
+.empty-icon{font-size:2rem;margin-bottom:8px;}
+.flex-between{display:flex;justify-content:space-between;align-items:center;}
+.flex-gap{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;
+  border-bottom:1px solid var(--sep);font-size:0.82rem;}
+.detail-row:last-child{border-bottom:none;}
+.detail-row .lbl{color:var(--lbl2);}
+.detail-row .val{font-weight:600;color:var(--lbl);text-align:right;max-width:65%;}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.38);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:999;
+  align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:var(--rxl) var(--rxl) 0 0;width:100%;
+  max-height:92vh;overflow-y:auto;padding:20px 20px 32px;
+  padding-bottom:calc(32px + env(safe-area-inset-bottom));
+  animation:slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1);}
+@keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.modal-handle{width:36px;height:4px;background:var(--sep2);border-radius:2px;margin:0 auto 16px;}
+.modal-title{font-size:1.1rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:16px;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.modal-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--lbl2);padding:4px;}
+/* PHOTO GRID */
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0;}
+.photo-thumb{aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--surface2);
+  position:relative;cursor:pointer;}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;}
+.photo-add{aspect-ratio:1;border-radius:8px;background:var(--surface2);border:2px dashed var(--sep2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:1.5rem;cursor:pointer;color:var(--lbl3);gap:4px;font-size:0.7rem;}
+.photo-add-icon{font-size:1.5rem;}
+.photo-del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.5);color:#fff;
+  border:none;border-radius:50%;width:20px;height:20px;font-size:0.7rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1;}
+/* INSTRUMENT CARD */
+.instr-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--sh);
+  overflow:hidden;margin-bottom:12px;}
+.instr-card-img{width:100%;height:160px;object-fit:cover;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;font-size:3rem;color:var(--lbl3);}
+.instr-card-img img{width:100%;height:100%;object-fit:cover;}
+.instr-card-body{padding:14px 16px;}
+.instr-card-title{font-size:1rem;font-weight:700;letter-spacing:-0.02em;}
+.instr-card-sub{font-size:0.76rem;color:var(--lbl2);margin-top:2px;}
+.instr-card-prices{display:flex;gap:12px;margin-top:10px;}
+.price-block{flex:1;background:var(--surface2);border-radius:8px;padding:8px 10px;}
+.price-lbl{font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--lbl3);margin-bottom:2px;}
+.price-val{font-size:0.95rem;font-weight:800;}
+.instr-card-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+/* CONDITION DOTS */
+.cond-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+/* LIGHTBOX */
+#lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;
+  align-items:center;justify-content:center;flex-direction:column;}
+#lightbox.open{display:flex;}
+#lightbox img{max-width:96vw;max-height:88vh;object-fit:contain;border-radius:10px;}
+#lightbox-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);
+  color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:1.2rem;cursor:pointer;}
+/* INSERAT MODAL */
+#insertModal .modal{max-height:80vh;}
+#insertText{white-space:pre-wrap;font-size:0.87rem;line-height:1.6;color:var(--lbl);
+  background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:14px;
+  max-height:40vh;overflow-y:auto;}
+/* SEARCH BAR */
+.search-wrap{position:relative;margin-bottom:14px;}
+.search-input{width:100%;background:rgba(118,118,128,0.12);border:none;border-radius:10px;
+  padding:9px 14px 9px 36px;font-family:inherit;font-size:0.88rem;color:var(--lbl);outline:none;}
+.search-input::placeholder{color:var(--lbl3);}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--lbl3);font-size:0.9rem;}
+/* FILTER CHIPS */
+.filter-row{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px;}
+.filter-row::-webkit-scrollbar{display:none;}
+.filter-chip{flex-shrink:0;padding:5px 11px;border-radius:20px;border:none;
+  font-family:inherit;font-size:0.76rem;font-weight:600;cursor:pointer;
+  background:var(--surface2);color:var(--lbl2);transition:all 0.15s;}
+.filter-chip.active{background:var(--blue);color:#fff;}
+/* TOTAL BANNER */
+.total-banner{background:linear-gradient(135deg,#007AFF,#5856D6);border-radius:var(--r);
+  padding:18px 20px;margin-bottom:14px;color:#fff;box-shadow:var(--sh);}
+.total-banner-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:0.8;}
+.total-banner-value{font-size:2rem;font-weight:800;letter-spacing:-0.04em;margin:4px 0;}
+.total-banner-sub{font-size:0.76rem;opacity:0.75;}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- TOP BAR -->
+  <div id="topBar">
+    <div id="topBarTitle">🎸 Instrumente</div>
+    <button id="addBtn" onclick="openAddModal()">＋</button>
+  </div>
+
+  <!-- SCROLL AREA -->
+  <div id="scrollArea">
+
+    <!-- ═══ PAGE: BESTAND ═══ -->
+    <div class="page active" id="page-bestand">
+      <div class="page-title">Bestand</div>
+      <div class="page-sub">Aktuelle Instrumente im Besitz</div>
+
+      <div class="total-banner" id="totalBanner">
+        <div class="total-banner-label">📦 Gesamter Warenwert (Verkauf)</div>
+        <div class="total-banner-value" id="totalValue">0,00 €</div>
+        <div class="total-banner-sub" id="totalSub">0 Instrumente · Kaufwert: 0,00 €</div>
+      </div>
+
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="searchInput" placeholder="Suchen…" oninput="renderBestand()">
+      </div>
+      <div class="filter-row" id="catFilter"></div>
+      <div id="bestandList"></div>
+    </div>
+
+    <!-- ═══ PAGE: ARCHIV ═══ -->
+    <div class="page" id="page-archiv">
+      <div class="page-title">Archiv</div>
+      <div class="page-sub">Verkauft & verschenkt</div>
+      <div id="archivList"></div>
+    </div>
+
+    <!-- ═══ PAGE: STATISTIK ═══ -->
+    <div class="page" id="page-statistik">
+      <div class="page-title">Statistik</div>
+      <div class="page-sub">Überblick & Auswertung</div>
+      <div class="grid-2" id="statsKpis"></div>
+      <div class="card card-pad" style="padding:16px;">
+        <div class="stat-label" style="margin-bottom:10px;">Bestand nach Kategorie</div>
+        <div style="height:220px;position:relative;"><canvas id="catChart"></canvas></div>
+      </div>
+      <div class="card card-pad" style="padding:16px;margin-top:0;">
+        <div class="stat-label" style="margin-bottom:10px;">Kauf- vs. Verkaufswert</div>
+        <div style="height:220px;position:relative;"><canvas id="valueChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ═══ PAGE: EINSTELLUNGEN ═══ -->
+    <div class="page" id="page-einstellungen">
+      <div class="page-title">Daten</div>
+      <div class="page-sub">Import & Export aller Daten</div>
+
+      <div class="section-label" style="margin-top:0;">📤 Exportieren</div>
+      <div class="card">
+        <div class="card-list-item" onclick="exportJSON()">
+          <div class="item-icon" style="background:var(--blue-l);font-size:1.3rem;">📦</div>
+          <div class="item-body">
+            <div class="item-title">Vollständige Sicherung (JSON)</div>
+            <div class="item-sub">Bestand + Archiv + alle Fotos als .json Datei</div>
+          </div>
+          <div style="color:var(--blue);font-size:1rem;">↓</div>
+        </div>
+        <div class="card-list-item" onclick="exportCSV('inv')">
+          <div class="item-icon" style="background:var(--green-l);font-size:1.3rem;">📊</div>
+          <div class="item-body">
+            <div class="item-title">Bestand als CSV</div>
+            <div class="item-sub">Tabelle für Excel / Numbers — ohne Fotos</div>
+          </div>
+          <div style="color:var(--green);font-size:1rem;">↓</div>
+        </div>
+        <div class="card-list-item" onclick="exportCSV('arch')">
+          <div class="item-icon" style="background:var(--orange-l);font-size:1.3rem;">📋</div>
+          <div class="item-body">
+            <div class="item-title">Archiv als CSV</div>
+            <div class="item-sub">Verkaufte / verschenkte Instrumente als Tabelle</div>
+          </div>
+          <div style="color:var(--orange);font-size:1rem;">↓</div>
+        </div>
+      </div>
+
+      <div class="section-label">📥 Importieren</div>
+      <div class="card">
+        <div class="card-list-item" onclick="document.getElementById('importFile').click()">
+          <div class="item-icon" style="background:var(--purple-l);font-size:1.3rem;">⬆️</div>
+          <div class="item-body">
+            <div class="item-title">Sicherung wiederherstellen (JSON)</div>
+            <div class="item-sub">Zuvor exportierte .json Datei importieren</div>
+          </div>
+          <div style="color:var(--purple);font-size:1rem;">↑</div>
+        </div>
+      </div>
+      <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importJSON(event)">
+
+      <div class="section-label">⚠️ Daten verwalten</div>
+      <div class="card">
+        <div class="card-list-item" onclick="clearAllData()">
+          <div class="item-icon" style="background:var(--red-l);font-size:1.3rem;">🗑️</div>
+          <div class="item-body">
+            <div class="item-title" style="color:var(--red);">Alle Daten löschen</div>
+            <div class="item-sub">Bestand und Archiv vollständig zurücksetzen</div>
+          </div>
+          <div style="color:var(--red);font-size:1rem;">›</div>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-top:4px;">
+        <div id="dataStats" style="font-size:0.82rem;color:var(--lbl2);line-height:1.8;"></div>
+      </div>
+
+    </div>
+
+  </div><!-- /scrollArea -->
+
+  <!-- TAB BAR -->
+  <div id="tabBar">
+    <button class="tab-btn active" id="tab-bestand" onclick="nav('bestand')">
+      <span class="tab-icon">🎸</span>Bestand
+    </button>
+    <button class="tab-btn" id="tab-archiv" onclick="nav('archiv')">
+      <span class="tab-icon">📦</span>Archiv
+    </button>
+    <button class="tab-btn" id="tab-statistik" onclick="nav('statistik')">
+      <span class="tab-icon">📊</span>Statistik
+    </button>
+    <button class="tab-btn" id="tab-einstellungen" onclick="nav('einstellungen')">
+      <span class="tab-icon">⚙️</span>Daten
+    </button>
+  </div>
+</div><!-- /app -->
+
+<!-- ════════════════════════════════════════
+     ADD / EDIT MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="addModalTitle">Instrument hinzufügen</div>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-header">Grunddaten</div>
+      <div class="form-row">
+        <label class="form-label">Kategorie</label>
+        <select class="form-input" id="f-cat">
+          <option value="">— Bitte wählen —</option>
+          <option>🎸 Gitarre (Akustik)</option>
+          <option>🎸 Gitarre (E-Gitarre)</option>
+          <option>🎸 Bass</option>
+          <option>🎹 Klavier / Keyboard</option>
+          <option>🥁 Schlagzeug / Percussion</option>
+          <option>🎷 Blasinstrument</option>
+          <option>🎻 Streichinstrument</option>
+          <option>🎤 Mikrofon / Audio</option>
+          <option>🔊 Verstärker / Equipment</option>
+          <option>🎵 Sonstiges</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Marke / Hersteller</label>
+        <input class="form-input" id="f-brand" placeholder="z.B. Gibson, Fender, Roland…">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Modell / Bezeichnung</label>
+        <input class="form-input" id="f-model" placeholder="z.B. Les Paul Standard, Stratocaster…">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Seriennummer (optional)</label>
+        <input class="form-input" id="f-serial" placeholder="z.B. R9-12345">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Baujahr (optional)</label>
+        <input class="form-input" id="f-year" placeholder="z.B. 2019" type="number" min="1900" max="2099">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Farbe / Finish</label>
+        <input class="form-input" id="f-color" placeholder="z.B. Sunburst, Natural…">
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-header">Zustand & Wert</div>
+      <div class="form-row">
+        <label class="form-label">Zustand</label>
+        <select class="form-input" id="f-cond">
+          <option value="Neu">🟢 Neu</option>
+          <option value="Sehr gut">🟢 Sehr gut</option>
+          <option value="Gut" selected>🟡 Gut</option>
+          <option value="Befriedigend">🟡 Befriedigend</option>
+          <option value="Gebraucht">🟠 Gebraucht</option>
+          <option value="Defekt">🔴 Defekt</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Kaufpreis (€)</label>
+        <input class="form-input" id="f-buy" placeholder="0,00" type="number" step="0.01" min="0">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Kaufdatum <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--lbl3);">(optional)</span></label>
+        <input class="form-input" id="f-buydate" type="date">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Kalkulierter Verkaufspreis (€)</label>
+        <input class="form-input" id="f-sell" placeholder="0,00" type="number" step="0.01" min="0">
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-header">Detailbeschreibung</div>
+      <div class="form-row">
+        <label class="form-label">Beschreibung / Besonderheiten</label>
+        <textarea class="form-input" id="f-desc" placeholder="Detailbeschreibung, Ausstattung, Besonderheiten, Mängel…" rows="5"></textarea>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Zubehör (optional)</label>
+        <input class="form-input" id="f-acc" placeholder="z.B. Koffer, Kabel, Ständer…">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Standort (optional)</label>
+        <input class="form-input" id="f-loc" placeholder="z.B. Wohnzimmer, Proberaum, Keller…">
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-header">Fotos</div>
+      <div class="card-pad" style="padding:14px 16px 10px;">
+        <div class="photo-grid" id="f-photos-grid"></div>
+        <input type="file" id="f-photo-input" accept="image/*" multiple style="display:none" onchange="handlePhotoUpload(event)">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-subtle btn-full" style="flex:1;" onclick="closeAddModal()">Abbrechen</button>
+      <button class="btn btn-blue btn-full" style="flex:1;" onclick="saveInstrument()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     DETAIL MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="det-title">Detail</div>
+      <button class="modal-close" onclick="closeDetailModal()">✕</button>
+    </div>
+    <div id="det-content"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     ARCHIV-MOVE MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="archivModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">Ins Archiv verschieben</div>
+      <button class="modal-close" onclick="closeArchivModal()">✕</button>
+    </div>
+    <div class="form-section">
+      <div class="form-section-header">Verkauf / Weitergabe</div>
+      <div class="form-row">
+        <label class="form-label">Art der Weitergabe</label>
+        <select class="form-input" id="arch-type">
+          <option value="Verkauft">💶 Verkauft</option>
+          <option value="Verschenkt">🎁 Verschenkt</option>
+          <option value="Verloren">❌ Verloren / Sonstiges</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Tatsächlicher Verkaufspreis (€)</label>
+        <input class="form-input" id="arch-price" placeholder="0,00" type="number" step="0.01" min="0">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Datum</label>
+        <input class="form-input" id="arch-date" type="date">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Notiz (optional)</label>
+        <input class="form-input" id="arch-note" placeholder="Käufer, Plattform, …">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-subtle btn-full" style="flex:1;" onclick="closeArchivModal()">Abbrechen</button>
+      <button class="btn btn-orange btn-full" style="flex:1;" onclick="confirmArchiv()">Archivieren</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     INSERAT MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="insertModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="insertModalTitle">Verkaufsinserat</div>
+      <button class="modal-close" onclick="closeInsertModal()">&#x2715;</button>
+    </div>
+    <div id="insertBanner" style="border-radius:10px;overflow:hidden;margin-bottom:14px;height:90px;display:flex;align-items:center;padding:0 20px;gap:16px;"></div>
+    <div id="insertText"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-subtle btn-sm" style="flex:1;" onclick="copyInserat()">📋 Kopieren</button>
+      <button class="btn btn-blue btn-sm" style="flex:1;" onclick="exportInserat('pdf')">📄 PDF</button>
+      <button class="btn btn-blue btn-sm" style="flex:1;" onclick="exportInserat('word')">📝 Word</button>
+      <button class="btn btn-subtle btn-sm" style="flex:1;" onclick="closeInsertModal()">Fertig</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     EINSTELLUNGEN / DATEN PAGE (inline, no modal)
+════════════════════════════════════════ -->
+<!-- hidden page added via JS nav() -->
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  SAFE STORAGE
+// ══════════════════════════════════════════════════
+const _mem = {};
+const _ls = {
+  getItem: k => { try { return window.localStorage.getItem(k); } catch(e) { return _mem[k]!==undefined?_mem[k]:null; } },
+  setItem: (k,v) => { try { window.localStorage.setItem(k,v); } catch(e) { _mem[k]=v; } },
+  removeItem: k => { try { window.localStorage.removeItem(k); } catch(e) { delete _mem[k]; } },
+};
+const ls = {
+  get: k => { try { return JSON.parse(_ls.getItem(k)) || []; } catch { return []; } },
+  set: (k,v) => _ls.setItem(k, JSON.stringify(v)),
+};
+const K = { inv: 'hm_instr_inventory', arch: 'hm_instr_archive' };
+
+// ══════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════
+const fmtN = (n,d=2) => Number(n||0).toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtDate = ds => { if(!ds) return '—'; const [y,m,d]=ds.split('-'); return d+'.'+m+'.'+y; };
+const today = () => new Date().toISOString().slice(0,10);
+
+const COND_COLOR = {
+  'Neu':'#34C759','Sehr gut':'#34C759','Gut':'#FFCC00',
+  'Befriedigend':'#FFCC00','Gebraucht':'#FF9500','Defekt':'#FF3B30'
+};
+
+// ══════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════
+const PAGES = ['bestand','archiv','statistik','einstellungen'];
+function nav(id) {
+  PAGES.forEach(p => {
+    document.getElementById('page-'+p).classList.toggle('active', p===id);
+    document.getElementById('tab-'+p).classList.toggle('active', p===id);
+  });
+  document.getElementById('topBarTitle').textContent =
+    id==='bestand'?'🎸 Instrumente': id==='archiv'?'📦 Archiv': id==='statistik'?'📊 Statistik':'⚙️ Daten & Import/Export';
+  document.getElementById('scrollArea').scrollTop=0;
+  if(id==='bestand') renderBestand();
+  if(id==='archiv') renderArchiv();
+  if(id==='statistik') renderStatistik();
+  if(id==='einstellungen') renderEinstellungen();
+}
+
+// ══════════════════════════════════════════════════
+//  PHOTO HANDLING (base64 in localStorage)
+// ══════════════════════════════════════════════════
+let _editPhotos = []; // base64 strings currently in form
+
+function handlePhotoUpload(e) {
+  const files = Array.from(e.target.files);
+  let loaded=0;
+  files.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      _editPhotos.push(ev.target.result);
+      loaded++;
+      if(loaded===files.length) renderFormPhotos();
+    };
+    reader.readAsDataURL(f);
+  });
+  e.target.value='';
+}
+
+function renderFormPhotos() {
+  const grid = document.getElementById('f-photos-grid');
+  let html = _editPhotos.map((src,i) => `
+    <div class="photo-thumb">
+      <img src="${src}" onclick="openLightbox('${src}')">
+      <button class="photo-del" onclick="removeFormPhoto(${i})">✕</button>
+    </div>`).join('');
+  html += `<div class="photo-add" onclick="document.getElementById('f-photo-input').click()">
+    <span class="photo-add-icon">📷</span>Foto hinzufügen
+  </div>`;
+  grid.innerHTML = html;
+}
+
+function removeFormPhoto(i) {
+  _editPhotos.splice(i,1);
+  renderFormPhotos();
+}
+
+// ══════════════════════════════════════════════════
+//  ADD / EDIT MODAL
+// ══════════════════════════════════════════════════
+let _editIdx = null; // null = new, number = edit index in inventory
+
+function openAddModal(editIdx=null) {
+  _editIdx = editIdx;
+  const inv = ls.get(K.inv);
+  const item = editIdx!==null ? inv[editIdx] : null;
+  document.getElementById('addModalTitle').textContent = item ? 'Instrument bearbeiten' : 'Instrument hinzufügen';
+  // Fill form
+  document.getElementById('f-cat').value = item?.cat||'';
+  document.getElementById('f-brand').value = item?.brand||'';
+  document.getElementById('f-model').value = item?.model||'';
+  document.getElementById('f-serial').value = item?.serial||'';
+  document.getElementById('f-year').value = item?.year||'';
+  document.getElementById('f-color').value = item?.color||'';
+  document.getElementById('f-cond').value = item?.cond||'Gut';
+  document.getElementById('f-buy').value = item?.buy||'';
+  document.getElementById('f-buydate').value = item?.buydate||'';
+  document.getElementById('f-sell').value = item?.sell||'';
+  document.getElementById('f-desc').value = item?.desc||'';
+  document.getElementById('f-acc').value = item?.acc||'';
+  document.getElementById('f-loc').value = item?.loc||'';
+  _editPhotos = item?.photos ? [...item.photos] : [];
+  renderFormPhotos();
+  document.getElementById('addModal').classList.add('open');
+}
+
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('open');
+  _editIdx=null; _editPhotos=[];
+}
+
+function saveInstrument() {
+  const cat = document.getElementById('f-cat').value;
+  const brand = document.getElementById('f-brand').value.trim();
+  const model = document.getElementById('f-model').value.trim();
+  if(!cat||!brand||!model) { alert('Bitte Kategorie, Marke und Modell angeben.'); return; }
+  const item = {
+    cat, brand, model,
+    serial: document.getElementById('f-serial').value.trim(),
+    year: document.getElementById('f-year').value,
+    color: document.getElementById('f-color').value.trim(),
+    cond: document.getElementById('f-cond').value,
+    buy: parseFloat(document.getElementById('f-buy').value)||0,
+    buydate: document.getElementById('f-buydate').value,
+    sell: parseFloat(document.getElementById('f-sell').value)||0,
+    desc: document.getElementById('f-desc').value.trim(),
+    acc: document.getElementById('f-acc').value.trim(),
+    loc: document.getElementById('f-loc').value.trim(),
+    photos: [..._editPhotos],
+    created: today(),
+    id: _editIdx!==null ? ls.get(K.inv)[_editIdx].id : Date.now(),
+  };
+  const inv = ls.get(K.inv);
+  if(_editIdx!==null) inv[_editIdx]=item; else inv.push(item);
+  ls.set(K.inv, inv);
+  closeAddModal();
+  renderBestand();
+}
+
+// ══════════════════════════════════════════════════
+//  ARCHIV MOVE MODAL
+// ══════════════════════════════════════════════════
+let _archivIdx = null;
+
+function openArchivModal(idx) {
+  _archivIdx = idx;
+  const inv = ls.get(K.inv);
+  document.getElementById('arch-price').value = inv[idx]?.sell||'';
+  document.getElementById('arch-date').value = today();
+  document.getElementById('arch-note').value = '';
+  document.getElementById('arch-type').value = 'Verkauft';
+  closeDetailModal();
+  document.getElementById('archivModal').classList.add('open');
+}
+function closeArchivModal() {
+  document.getElementById('archivModal').classList.remove('open');
+  _archivIdx=null;
+}
+function confirmArchiv() {
+  if(_archivIdx===null) return;
+  const inv = ls.get(K.inv);
+  const item = inv[_archivIdx];
+  item.archType = document.getElementById('arch-type').value;
+  item.archPrice = parseFloat(document.getElementById('arch-price').value)||0;
+  item.archDate = document.getElementById('arch-date').value;
+  item.archNote = document.getElementById('arch-note').value.trim();
+  const arch = ls.get(K.arch);
+  arch.push(item);
+  ls.set(K.arch, arch);
+  inv.splice(_archivIdx,1);
+  ls.set(K.inv, inv);
+  closeArchivModal();
+  renderBestand();
+}
+
+function restoreFromArchiv(idx) {
+  if(!confirm('Instrument wieder in den Bestand zurücklegen?')) return;
+  const arch = ls.get(K.arch);
+  const item = arch[idx];
+  delete item.archType; delete item.archPrice; delete item.archDate; delete item.archNote;
+  const inv = ls.get(K.inv);
+  inv.push(item);
+  ls.set(K.inv, inv);
+  arch.splice(idx,1);
+  ls.set(K.arch, arch);
+  renderArchiv();
+}
+
+function deleteFromArchiv(idx) {
+  if(!confirm('Eintrag dauerhaft löschen?')) return;
+  const arch = ls.get(K.arch);
+  arch.splice(idx,1);
+  ls.set(K.arch, arch);
+  renderArchiv();
+}
+
+function deleteFromInventory(idx) {
+  if(!confirm('Instrument dauerhaft löschen?')) return;
+  const inv = ls.get(K.inv);
+  inv.splice(idx,1);
+  ls.set(K.inv, inv);
+  closeDetailModal();
+  renderBestand();
+}
+
+// ══════════════════════════════════════════════════
+//  DETAIL MODAL
+// ══════════════════════════════════════════════════
+function openDetailModal(idx, isArchiv=false) {
+  const list = ls.get(isArchiv ? K.arch : K.inv);
+  const item = list[idx];
+  if(!item) return;
+  document.getElementById('det-title').textContent = `${item.brand} ${item.model}`;
+  const condColor = COND_COLOR[item.cond]||'#8E8E93';
+  let photosHtml = '';
+  if(item.photos && item.photos.length) {
+    photosHtml = `<div class="photo-grid" style="margin-bottom:16px;">${
+      item.photos.map(src=>`<div class="photo-thumb"><img src="${src}" onclick="openLightbox('${src}')"></div>`).join('')
+    }</div>`;
+  }
+  let archiveInfo = '';
+  if(isArchiv) {
+    const typeIcon = item.archType==='Verkauft'?'💶':item.archType==='Verschenkt'?'🎁':'❌';
+    archiveInfo = `
+      <div class="card" style="border-top:3px solid var(--orange);margin-bottom:14px;">
+        <div class="card-pad">
+          <div style="font-size:0.72rem;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">${typeIcon} ${item.archType}</div>
+          <div class="detail-row"><span class="lbl">Erlös</span><span class="val">${fmtN(item.archPrice)} €</span></div>
+          <div class="detail-row"><span class="lbl">Datum</span><span class="val">${fmtDate(item.archDate)}</span></div>
+          ${item.archNote?`<div class="detail-row"><span class="lbl">Notiz</span><span class="val">${item.archNote}</span></div>`:''}
+        </div>
+      </div>`;
+  }
+  let details = '';
+  const rows = [
+    ['Kategorie', item.cat],
+    ['Seriennummer', item.serial],
+    ['Baujahr', item.year],
+    ['Farbe / Finish', item.color],
+    ['Zustand', `<span style="color:${condColor};font-weight:700;">● ${item.cond}</span>`],
+    ['Kaufpreis', item.buy ? fmtN(item.buy)+' €' : '—'],
+    ['Kaufdatum', fmtDate(item.buydate)],
+    ['Kalk. Verkaufspreis', item.sell ? `<strong>${fmtN(item.sell)} €</strong>` : '—'],
+    ['Zubehör', item.acc],
+    ['Standort', item.loc],
+  ].filter(([,v])=>v);
+  details = rows.map(([l,v])=>`<div class="detail-row"><span class="lbl">${l}</span><span class="val">${v}</span></div>`).join('');
+
+  let descHtml = item.desc ? `<div class="section-label">Beschreibung</div>
+    <div class="card card-pad" style="font-size:0.86rem;line-height:1.6;color:var(--lbl);margin-bottom:12px;">${item.desc}</div>` : '';
+
+  let actions = isArchiv ? `
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <button class="btn btn-subtle btn-sm" style="flex:1;" onclick="restoreFromArchiv(${idx})">↩️ Zurück in Bestand</button>
+      <button class="btn btn-red btn-sm" onclick="deleteFromArchiv(${idx});closeDetailModal()">🗑️ Löschen</button>
+    </div>` : `
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <button class="btn btn-subtle btn-sm" style="flex:1;" onclick="closeDetailModal();openAddModal(${idx})">✏️ Bearbeiten</button>
+      <button class="btn btn-orange btn-sm" style="flex:1;" onclick="openArchivModal(${idx})">📦 Archivieren</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+      <button class="btn btn-purple btn-sm" style="flex:1;" onclick="generateInserat(${idx})">📢 Inserat erstellen</button>
+      <button class="btn btn-blue btn-sm" style="flex:1;" onclick="exportItem(${idx},'pdf')">PDF Export</button>
+      <button class="btn btn-blue btn-sm" style="flex:1;" onclick="exportItem(${idx},'word')">Word Export</button>
+    </div>
+    <div style="margin-top:8px;">
+      <button class="btn btn-red btn-sm btn-full" onclick="deleteFromInventory(${idx})">🗑️ Dauerhaft löschen</button>
+    </div>`;
+
+  document.getElementById('det-content').innerHTML = photosHtml + archiveInfo +
+    `<div class="card card-pad" style="margin-bottom:12px;">${details}</div>` + descHtml + actions;
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetailModal() { document.getElementById('detailModal').classList.remove('open'); }
+
+// ══════════════════════════════════════════════════
+//  BESTAND RENDER
+// ══════════════════════════════════════════════════
+let _catFilter = 'Alle';
+
+function renderBestand() {
+  const inv = ls.get(K.inv);
+  const q = (document.getElementById('searchInput')?.value||'').toLowerCase();
+
+  // Total banner
+  const totalSell = inv.reduce((s,i)=>s+(i.sell||0),0);
+  const totalBuy  = inv.reduce((s,i)=>s+(i.buy||0),0);
+  document.getElementById('totalValue').textContent = fmtN(totalSell)+' €';
+  document.getElementById('totalSub').textContent = `${inv.length} Instrument${inv.length!==1?'e':''} · Kaufwert: ${fmtN(totalBuy)} €`;
+
+  // Cat filter
+  const cats = ['Alle', ...new Set(inv.map(i=>i.cat).filter(Boolean))];
+  document.getElementById('catFilter').innerHTML = cats.map(c=>
+    `<button class="filter-chip ${_catFilter===c?'active':''}" onclick="_catFilter='${c.replace(/'/g,"\\'")}';renderBestand()">${c}</button>`
+  ).join('');
+
+  let filtered = inv;
+  if(_catFilter!=='Alle') filtered=filtered.filter(i=>i.cat===_catFilter);
+  if(q) filtered=filtered.filter(i=>(i.brand+' '+i.model+' '+i.cat+' '+i.desc).toLowerCase().includes(q));
+
+  if(!filtered.length) {
+    document.getElementById('bestandList').innerHTML=`<div class="empty"><div class="empty-icon">🎸</div>${inv.length?'Keine Treffer.':'Noch keine Instrumente erfasst.<br>Tippe auf <strong>＋</strong> um zu beginnen.'}</div>`;
+    return;
+  }
+
+  document.getElementById('bestandList').innerHTML = filtered.map(item=>{
+    const realIdx = inv.indexOf(item);
+    const condColor = COND_COLOR[item.cond]||'#8E8E93';
+    const thumb = item.photos&&item.photos.length ? `<img src="${item.photos[0]}">` : `<span>🎸</span>`;
+    return `<div class="instr-card">
+      <div class="instr-card-img" onclick="openDetailModal(${realIdx})">${
+        item.photos&&item.photos.length
+          ? `<img src="${item.photos[0]}" style="width:100%;height:100%;object-fit:cover;">`
+          : `<span style="font-size:3rem;color:var(--lbl3);">🎸</span>`
+      }</div>
+      <div class="instr-card-body">
+        <div class="flex-between">
+          <div>
+            <div class="instr-card-title">${item.brand} ${item.model}</div>
+            <div class="instr-card-sub">${item.cat||''}${item.year?' · '+item.year:''}</div>
+          </div>
+          <span class="badge" style="background:${condColor}22;color:${condColor};">● ${item.cond}</span>
+        </div>
+        <div class="instr-card-prices">
+          <div class="price-block">
+            <div class="price-lbl">Kaufpreis</div>
+            <div class="price-val" style="color:var(--lbl2);">${item.buy?fmtN(item.buy)+' €':'—'}</div>
+          </div>
+          <div class="price-block" style="background:var(--blue-l);">
+            <div class="price-lbl" style="color:var(--blue);">Kalk. Verkauf</div>
+            <div class="price-val" style="color:var(--blue);">${item.sell?fmtN(item.sell)+' €':'—'}</div>
+          </div>
+        </div>
+        <div class="instr-card-actions">
+          <button class="btn btn-subtle btn-sm" onclick="openDetailModal(${realIdx})">Details</button>
+          <button class="btn btn-subtle btn-sm" onclick="closeDetailModal();openAddModal(${realIdx})">✏️</button>
+          <button class="btn btn-purple btn-sm" onclick="generateInserat(${realIdx})">📢 Inserat</button>
+          <button class="btn btn-orange btn-sm" onclick="openArchivModal(${realIdx})">📦</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  ARCHIV RENDER
+// ══════════════════════════════════════════════════
+function renderArchiv() {
+  const arch = ls.get(K.arch);
+  if(!arch.length) {
+    document.getElementById('archivList').innerHTML=`<div class="empty"><div class="empty-icon">📦</div>Noch keine archivierten Instrumente.</div>`;
+    return;
+  }
+  document.getElementById('archivList').innerHTML = arch.map((item,idx)=>{
+    const typeIcon = item.archType==='Verkauft'?'💶':item.archType==='Verschenkt'?'🎁':'❌';
+    const thumb = item.photos&&item.photos.length
+      ? `<img src="${item.photos[0]}" style="width:100%;height:100%;object-fit:cover;">`
+      : `<span style="font-size:3rem;color:var(--lbl3);">🎸</span>`;
+    return `<div class="instr-card" onclick="openDetailModal(${idx},true)">
+      <div class="instr-card-img" style="opacity:0.7;">${thumb}</div>
+      <div class="instr-card-body">
+        <div class="flex-between">
+          <div>
+            <div class="instr-card-title" style="color:var(--lbl2);">${item.brand} ${item.model}</div>
+            <div class="instr-card-sub">${item.cat||''}</div>
+          </div>
+          <span class="badge badge-gray">${typeIcon} ${item.archType}</span>
+        </div>
+        <div class="instr-card-prices">
+          <div class="price-block">
+            <div class="price-lbl">Kaufpreis</div>
+            <div class="price-val" style="color:var(--lbl2);">${item.buy?fmtN(item.buy)+' €':'—'}</div>
+          </div>
+          <div class="price-block" style="background:var(--orange-l);">
+            <div class="price-lbl" style="color:var(--orange);">Erlös</div>
+            <div class="price-val" style="color:var(--orange);">${fmtN(item.archPrice)} €</div>
+          </div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--lbl3);margin-top:6px;">Datum: ${fmtDate(item.archDate)}${item.archNote?' · '+item.archNote:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  STATISTIK RENDER
+// ══════════════════════════════════════════════════
+let _catChartInst=null, _valChartInst=null;
+function renderStatistik() {
+  const inv = ls.get(K.inv);
+  const arch = ls.get(K.arch);
+  const totalSell = inv.reduce((s,i)=>s+(i.sell||0),0);
+  const totalBuy  = inv.reduce((s,i)=>s+(i.buy||0),0);
+  const totalArchSell = arch.reduce((s,i)=>s+(i.archPrice||0),0);
+  const totalArchBuy  = arch.reduce((s,i)=>s+(i.buy||0),0);
+  const archGain = totalArchSell - totalArchBuy;
+
+  document.getElementById('statsKpis').innerHTML=`
+    <div class="stat-card" style="border-top:3px solid var(--blue);">
+      <div class="stat-label">📦 Bestand</div>
+      <div class="stat-value">${inv.length}<span class="stat-unit">Stk.</span></div>
+      <div class="stat-sub">Warenwert: ${fmtN(totalSell)} €</div>
+    </div>
+    <div class="stat-card" style="border-top:3px solid var(--green);">
+      <div class="stat-label">📋 Archiv</div>
+      <div class="stat-value">${arch.length}<span class="stat-unit">Stk.</span></div>
+      <div class="stat-sub">Erlös gesamt: ${fmtN(totalArchSell)} €</div>
+    </div>
+    <div class="stat-card" style="border-top:3px solid var(--orange);">
+      <div class="stat-label">💶 Investiert (Bestand)</div>
+      <div class="stat-value">${fmtN(totalBuy)}<span class="stat-unit">€</span></div>
+      <div class="stat-sub">Kalk. Gewinn: ${fmtN(totalSell-totalBuy)} €</div>
+    </div>
+    <div class="stat-card" style="border-top:3px solid ${archGain>=0?'var(--green)':'var(--red)'};">
+      <div class="stat-label">💹 Archiv Ergebnis</div>
+      <div class="stat-value" style="color:${archGain>=0?'var(--green)':'var(--red)'};">${fmtN(archGain)}<span class="stat-unit">€</span></div>
+      <div class="stat-sub">Kaufwert: ${fmtN(totalArchBuy)} €</div>
+    </div>`;
+
+  // Cat chart
+  const catGroups = {};
+  inv.forEach(i => { catGroups[i.cat||'Unbekannt'] = (catGroups[i.cat||'Unbekannt']||0)+1; });
+  const catLabels = Object.keys(catGroups);
+  const catData = catLabels.map(c=>catGroups[c]);
+  const palette = ['#007AFF','#34C759','#FF9500','#FF3B30','#AF52DE','#32ADE6','#FFCC00','#FF2D55','#5856D6'];
+  if(_catChartInst) _catChartInst.destroy();
+  _catChartInst = new Chart(document.getElementById('catChart'), {
+    type:'doughnut',
+    data:{ labels:catLabels, datasets:[{ data:catData, backgroundColor:palette, borderWidth:2, borderColor:'#fff' }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:9}, boxWidth:10 } } } }
+  });
+
+  // Value chart
+  if(_valChartInst) _valChartInst.destroy();
+  const top5 = [...inv].sort((a,b)=>(b.sell||0)-(a.sell||0)).slice(0,8);
+  _valChartInst = new Chart(document.getElementById('valueChart'), {
+    type:'bar',
+    data:{
+      labels: top5.map(i=>`${i.brand} ${i.model}`.slice(0,20)),
+      datasets:[
+        { label:'Kaufpreis', data:top5.map(i=>i.buy||0), backgroundColor:'rgba(255,149,0,0.7)', borderColor:'#FF9500', borderWidth:1.5, borderRadius:4 },
+        { label:'Verkaufswert', data:top5.map(i=>i.sell||0), backgroundColor:'rgba(0,122,255,0.7)', borderColor:'#007AFF', borderWidth:1.5, borderRadius:4 },
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      plugins:{ legend:{ position:'top', labels:{ font:{size:9}, boxWidth:10 } } },
+      scales:{
+        x:{ ticks:{color:'#3C3C4399',font:{size:9}}, grid:{color:'rgba(60,60,67,0.07)'}, border:{display:false} },
+        y:{ ticks:{color:'#3C3C4399',font:{size:8.5}}, grid:{color:'rgba(60,60,67,0.07)'}, border:{display:false} }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  KATEGORIE META (für Inserat-Banner)
+// ══════════════════════════════════════════════════
+const CAT_BANNER = {
+  'Gitarre (Akustik)':  { grad:['#8B5E3C','#C49A6C'], icon:'♪', label:'Akustikgitarre' },
+  'Gitarre (E-Gitarre)':{ grad:['#1a1a2e','#e94560'], icon:'♫', label:'E-Gitarre' },
+  'Bass':               { grad:['#0f2027','#2c5364'], icon:'♩', label:'Bass' },
+  'Klavier / Keyboard': { grad:['#1c1c1c','#4a4a4a'], icon:'♪', label:'Klavier / Keyboard' },
+  'Schlagzeug / Percussion':{ grad:['#3d0000','#cc0000'], icon:'◉', label:'Schlagzeug' },
+  'Blasinstrument':     { grad:['#b8860b','#ffd700'], icon:'♬', label:'Blasinstrument' },
+  'Streichinstrument':  { grad:['#3b1f0a','#8b4513'], icon:'♩', label:'Streichinstrument' },
+  'Mikrofon / Audio':   { grad:['#1a1a2e','#16213e'], icon:'○', label:'Mikrofon / Audio' },
+  'Verstärker / Equipment':{ grad:['#1b1b2f','#162447'], icon:'▣', label:'Equipment' },
+  'Sonstiges':          { grad:['#2d3436','#636e72'], icon:'♪', label:'Instrument' },
+};
+
+function getCatBannerMeta(cat) {
+  const cleanCat = (cat||'').replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim();
+  for (const key of Object.keys(CAT_BANNER)) {
+    if (cleanCat.includes(key) || key.includes(cleanCat)) return { ...CAT_BANNER[key], cleanCat };
+  }
+  return { ...CAT_BANNER['Sonstiges'], cleanCat };
+}
+
+function renderInseratBanner(item) {
+  const el = document.getElementById('insertBanner');
+  const meta = getCatBannerMeta(item?.cat||'');
+  const catClean = (item?.cat||'').replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim();
+  el.style.background = `linear-gradient(135deg, ${meta.grad[0]}, ${meta.grad[1]})`;
+  el.innerHTML = `
+    <div style="font-size:3rem;opacity:0.35;color:#fff;font-family:serif;line-height:1;">${meta.icon}</div>
+    <div style="flex:1;">
+      <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,0.55);margin-bottom:4px;">Verkaufsinserat &middot; ${catClean||'Instrument'}</div>
+      <div style="font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:-0.02em;line-height:1.2;">${item?.brand||''} ${item?.model||''}</div>
+      ${item?.sell?`<div style="font-size:0.82rem;color:rgba(255,255,255,0.7);margin-top:3px;">${fmtN(item.sell)} &euro; (VB)</div>`:''}
+    </div>`;
+  document.getElementById('insertModalTitle').textContent = 'Verkaufsinserat';
+}
+
+// ══════════════════════════════════════════════════
+//  INSERAT GENERATOR
+// ══════════════════════════════════════════════════
+let _insertIdx=null;
+function generateInserat(idx) {
+  _insertIdx=idx;
+  closeDetailModal();
+  const inv = ls.get(K.inv);
+  const i = inv[idx];
+  const catClean = (i.cat||'').replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim();
+
+  // Plain text — keine Emojis, keine Sonderzeichen die PDF-Probleme machen
+  const lines = [];
+  lines.push(`${i.brand} ${i.model}${i.year?' ('+i.year+')':''} - Zu verkaufen!`);
+  lines.push('');
+  lines.push(`Ich biete hier ein${['a','e','i','o','u'].includes(catClean[0]?.toLowerCase())?'n':''} ${catClean||'Instrument'} an.`);
+  lines.push('');
+  lines.push(`Marke / Modell:  ${i.brand} ${i.model}`);
+  if(i.year)   lines.push(`Baujahr:         ${i.year}`);
+  if(i.color)  lines.push(`Farbe:           ${i.color}`);
+  if(i.serial) lines.push(`Seriennummer:    ${i.serial}`);
+  lines.push(`Zustand:         ${i.cond}`);
+  if(i.acc)    lines.push(`Zubehoer:        ${i.acc}`);
+  lines.push('');
+  if(i.desc) {
+    lines.push('Beschreibung:');
+    lines.push(i.desc);
+    lines.push('');
+  }
+  lines.push(`Preis: ${i.sell ? fmtN(i.sell)+' EUR (VB)' : 'Preis auf Anfrage'}`);
+  lines.push('');
+  lines.push('Bei Interesse gerne melden! Versand oder Abholung moeglich.');
+
+  document.getElementById('insertText').textContent = lines.join('\n');
+  renderInseratBanner(i);
+  document.getElementById('insertModal').classList.add('open');
+}
+function closeInsertModal() { document.getElementById('insertModal').classList.remove('open'); }
+function copyInserat() {
+  const text = document.getElementById('insertText').textContent;
+  navigator.clipboard?.writeText(text).then(()=>alert('Inserat kopiert!')).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove(); alert('Inserat kopiert!');
+  });
+}
+
+function exportInserat(fmt) {
+  const inv = ls.get(K.inv);
+  const item = _insertIdx !== null ? inv[_insertIdx] : null;
+  const text = document.getElementById('insertText').textContent;
+  const title = item ? `${item.brand} ${item.model}` : 'Verkaufsinserat';
+  if (fmt === 'pdf') exportInseratPDF(title, text, item);
+  if (fmt === 'word') exportInseratWord(title, text, item);
+}
+
+async function exportInseratPDF(title, text, item) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const margin = 20, pageW = 210 - margin * 2;
+  let y = margin;
+
+  // Kategoriespezifisches Banner via Canvas
+  const meta = getCatBannerMeta(item?.cat||'');
+  const catClean = (item?.cat||'').replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim();
+  const bannerCanvas = document.createElement('canvas');
+  bannerCanvas.width = 1240; bannerCanvas.height = 200;
+  const ctx = bannerCanvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 1240, 200);
+  grad.addColorStop(0, meta.grad[0]);
+  grad.addColorStop(1, meta.grad[1]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1240, 200);
+  // Dekorativer Hintergrundtext
+  ctx.font = 'bold 160px serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillText(meta.icon + ' ' + meta.icon, 30, 170);
+  // Kategorie-Label
+  ctx.font = '600 28px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText(('Verkaufsinserat  \u00B7  ' + (catClean||'Instrument')).toUpperCase(), 40, 65);
+  // Titel
+  ctx.font = 'bold 56px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(title, 40, 130);
+  // Preis
+  if (item?.sell) {
+    ctx.font = '500 32px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(fmtN(item.sell) + ' EUR (VB)', 40, 172);
+  }
+  const bannerDataUrl = bannerCanvas.toDataURL('image/jpeg', 0.92);
+  doc.addImage(bannerDataUrl, 'JPEG', 0, 0, 210, 34, undefined, 'FAST');
+  y = 42;
+  doc.setTextColor(30, 30, 30);
+
+  // Foto (erstes, falls vorhanden)
+  if (item?.photos?.length) {
+    try {
+      doc.addImage(item.photos[0], 'JPEG', margin, y, 80, 55, undefined, 'FAST');
+      y += 62;
+    } catch(e) {}
+  }
+
+  // Inserat-Text (Emojis bereits entfernt)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+  const lines = doc.splitTextToSize(text, pageW);
+  lines.forEach(line => {
+    if (y > 270) { doc.addPage(); y = margin; }
+    // Erste Zeile (Titel) fett
+    if (lines.indexOf(line) === 0) doc.setFont('helvetica', 'bold');
+    else doc.setFont('helvetica', 'normal');
+    doc.text(line, margin, y);
+    y += 6;
+  });
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(160, 160, 160);
+  doc.text('Erstellt: ' + fmtDate(today()), margin, 290);
+  doc.save('Inserat_' + title.replace(/\s+/g,'_') + '.pdf');
+}
+
+async function exportInseratWord(title, text, item) {
+  if (!window.docx) { alert('Word-Export nicht verfügbar. Bitte Seite neu laden.'); return; }
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = window.docx;
+  const meta = getCatBannerMeta(item?.cat||'');
+  const catClean = (item?.cat||'').replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim();
+
+  // Banner via Canvas
+  const bannerCanvas = document.createElement('canvas');
+  bannerCanvas.width = 1240; bannerCanvas.height = 200;
+  const ctx = bannerCanvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 1240, 200);
+  grad.addColorStop(0, meta.grad[0]);
+  grad.addColorStop(1, meta.grad[1]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1240, 200);
+  ctx.font = 'bold 160px serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillText(meta.icon + ' ' + meta.icon, 30, 170);
+  ctx.font = '600 28px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText(('Verkaufsinserat  \u00B7  ' + (catClean||'Instrument')).toUpperCase(), 40, 65);
+  ctx.font = 'bold 56px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(title, 40, 130);
+  if (item?.sell) {
+    ctx.font = '500 32px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(fmtN(item.sell) + ' EUR (VB)', 40, 172);
+  }
+  const bannerBase64 = bannerCanvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+  const bannerBinary = atob(bannerBase64);
+  const bannerBuf = new Uint8Array(bannerBinary.length);
+  for (let bi = 0; bi < bannerBinary.length; bi++) bannerBuf[bi] = bannerBinary.charCodeAt(bi);
+
+  const children = [];
+  // Banner-Bild
+  children.push(new Paragraph({
+    children: [new ImageRun({ data: bannerBuf.buffer, transformation: { width: 600, height: 97 }, type: 'jpg' })],
+    alignment: AlignmentType.CENTER
+  }));
+  children.push(new Paragraph(''));
+
+  // Produktfoto
+  if (item?.photos?.length) {
+    try {
+      const base64 = item.photos[0].split(',')[1];
+      const binary = atob(base64);
+      const buf = new Uint8Array(binary.length);
+      for (let bi = 0; bi < binary.length; bi++) buf[bi] = binary.charCodeAt(bi);
+      children.push(new Paragraph({
+        children: [new ImageRun({ data: buf.buffer, transformation: { width: 400, height: 250 }, type: 'jpg' })],
+        alignment: AlignmentType.CENTER
+      }));
+      children.push(new Paragraph(''));
+    } catch(e) {}
+  }
+
+  // Inserat-Text (zeilenweise, ohne Emojis)
+  text.split('\n').forEach((line, idx) => {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: line || ' ', bold: idx === 0, size: idx === 0 ? 26 : 22 })]
+    }));
+  });
+
+  children.push(new Paragraph(''));
+  children.push(new Paragraph({
+    children: [new TextRun({ text: 'Erstellt am: ' + fmtDate(today()), color: '999999', size: 16 })]
+  }));
+
+  const doc = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Inserat_' + title.replace(/\s+/g,'_') + '.docx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════════
+//  EXPORT (PDF & WORD)
+// ══════════════════════════════════════════════════
+function exportItem(idx, fmt) {
+  const inv = ls.get(K.inv);
+  const item = inv[idx];
+  if(!item) return;
+  if(fmt==='pdf') exportPDF(item);
+  if(fmt==='word') exportWord(item);
+}
+
+async function exportPDF(item) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const margin=20, pageW=210-margin*2;
+  let y=margin;
+  // Header
+  doc.setFillColor(0,122,255);
+  doc.rect(0,0,210,28,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(18); doc.setFont('helvetica','bold');
+  doc.text(`${item.brand} ${item.model}`, margin, 18);
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if(item.cat) doc.text(item.cat.replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim(), margin, 24);
+  y=38;
+  doc.setTextColor(30,30,30);
+
+  // Photo (first one)
+  if(item.photos&&item.photos.length) {
+    try {
+      doc.addImage(item.photos[0], 'JPEG', margin, y, 80, 55, undefined, 'FAST');
+      y+=60;
+    } catch(e){}
+  }
+
+  // Details table
+  const rows=[
+    ['Kategorie', item.cat?.replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim()||''],
+    ['Baujahr', item.year||'—'],
+    ['Farbe / Finish', item.color||'—'],
+    ['Seriennummer', item.serial||'—'],
+    ['Zustand', item.cond||'—'],
+    ['Zubehör', item.acc||'—'],
+    ['Standort', item.loc||'—'],
+    ['Kaufpreis', item.buy?fmtN(item.buy)+' €':'—'],
+    ['Kaufdatum', fmtDate(item.buydate)],
+    ['Kalk. Verkaufspreis', item.sell?fmtN(item.sell)+' €':'—'],
+  ].filter(([,v])=>v&&v!=='—');
+
+  doc.setFontSize(10);
+  rows.forEach(([l,v])=>{
+    if(y>265){doc.addPage();y=margin;}
+    doc.setFont('helvetica','bold'); doc.setTextColor(100,100,100);
+    doc.text(l+':', margin, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(30,30,30);
+    doc.text(String(v), margin+55, y);
+    y+=7;
+  });
+
+  // Description
+  if(item.desc){
+    y+=4;
+    if(y>265){doc.addPage();y=margin;}
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0,122,255);
+    doc.text('Beschreibung', margin, y); y+=6;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
+    const descLines = doc.splitTextToSize(item.desc, pageW);
+    descLines.forEach(line=>{
+      if(y>270){doc.addPage();y=margin;}
+      doc.text(line, margin, y); y+=5.5;
+    });
+  }
+
+  // Additional photos
+  if(item.photos&&item.photos.length>1){
+    y+=6;
+    if(y>220){doc.addPage();y=margin;}
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0,122,255);
+    doc.text('Weitere Fotos', margin, y); y+=6;
+    let xOff=margin;
+    for(let pi=1;pi<item.photos.length;pi++){
+      if(xOff+55>210-margin){xOff=margin;y+=58;}
+      if(y>230){doc.addPage();y=margin;xOff=margin;}
+      try { doc.addImage(item.photos[pi],'JPEG',xOff,y,50,40,undefined,'FAST'); } catch(e){}
+      xOff+=55;
+    }
+  }
+
+  // Footer
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150,150,150);
+  doc.text(`Erstellt: ${fmtDate(today())}`, margin, 290);
+  doc.save(`${item.brand}_${item.model}.pdf`);
+}
+
+async function exportWord(item) {
+  if(!window.docx){ alert('Word-Export nicht verfügbar. Bitte Seite neu laden.'); return; }
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, BorderStyle, AlignmentType, WidthType, ImageRun } = window.docx;
+
+  const detailRows = [
+    ['Kategorie', item.cat?.replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim()||''],
+    ['Baujahr', item.year||'—'],
+    ['Farbe / Finish', item.color||'—'],
+    ['Seriennummer', item.serial||'—'],
+    ['Zustand', item.cond||'—'],
+    ['Zubehör', item.acc||'—'],
+    ['Standort', item.loc||'—'],
+    ['Kaufpreis', item.buy?fmtN(item.buy)+' €':'—'],
+    ['Kaufdatum', fmtDate(item.buydate)],
+    ['Kalk. Verkaufspreis', item.sell?fmtN(item.sell)+' €':'—'],
+  ].filter(([,v])=>v&&v!=='—');
+
+  // Build children
+  const children = [];
+  children.push(new Paragraph({ text:`${item.brand} ${item.model}`, heading:HeadingLevel.HEADING_1 }));
+  if(item.cat) children.push(new Paragraph({ children:[new TextRun({text:item.cat, color:'555555'})] }));
+  children.push(new Paragraph(''));
+
+  // Photos (base64 → ArrayBuffer)
+  for(const src of (item.photos||[])) {
+    try {
+      const base64 = src.split(',')[1];
+      const binary = atob(base64);
+      const buf = new Uint8Array(binary.length);
+      for(let bi=0;bi<binary.length;bi++) buf[bi]=binary.charCodeAt(bi);
+      children.push(new Paragraph({
+        children:[new ImageRun({ data:buf.buffer, transformation:{ width:400, height:250 }, type:'jpg' })],
+        alignment: AlignmentType.CENTER
+      }));
+      children.push(new Paragraph(''));
+    } catch(e){}
+  }
+
+  // Table
+  const table = new Table({
+    width:{ size:100, type:WidthType.PERCENTAGE },
+    rows: detailRows.map(([l,v])=>new TableRow({
+      children:[
+        new TableCell({ children:[new Paragraph({ children:[new TextRun({text:l, bold:true})] })], width:{size:35,type:WidthType.PERCENTAGE} }),
+        new TableCell({ children:[new Paragraph(v)] }),
+      ]
+    }))
+  });
+  children.push(table);
+  children.push(new Paragraph(''));
+
+  if(item.desc){
+    children.push(new Paragraph({ text:'Beschreibung', heading:HeadingLevel.HEADING_2 }));
+    item.desc.split('\n').forEach(l=>children.push(new Paragraph(l||' ')));
+    children.push(new Paragraph(''));
+  }
+  children.push(new Paragraph({ children:[new TextRun({text:`Erstellt am: ${fmtDate(today())}`, color:'999999', size:16})] }));
+
+  const doc = new Document({ sections:[{ children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`${item.brand}_${item.model}.docx`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════════
+//  EINSTELLUNGEN / DATEN
+// ══════════════════════════════════════════════════
+function renderEinstellungen() {
+  const inv = ls.get(K.inv);
+  const arch = ls.get(K.arch);
+  // estimate storage size
+  let bytes = 0;
+  try {
+    bytes = (JSON.stringify(inv).length + JSON.stringify(arch).length) * 2;
+  } catch(e) {}
+  const mb = (bytes / (1024*1024)).toFixed(2);
+  document.getElementById('dataStats').innerHTML = `
+    📦 Bestand: <strong>${inv.length} Instrumente</strong><br>
+    📋 Archiv: <strong>${arch.length} Einträge</strong><br>
+    🖼️ Fotos (Bestand): <strong>${inv.reduce((s,i)=>s+(i.photos?.length||0),0)}</strong> Stk.<br>
+    🖼️ Fotos (Archiv): <strong>${arch.reduce((s,i)=>s+(i.photos?.length||0),0)}</strong> Stk.<br>
+    💾 Geschätzte Datengröße: <strong>~${mb} MB</strong>`;
+}
+
+// ── JSON Export (Bestand + Archiv + Fotos) ───────
+function exportJSON() {
+  const payload = {
+    version: 1,
+    exportDate: today(),
+    inventory: ls.get(K.inv),
+    archive: ls.get(K.arch),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `instrumente_sicherung_${today()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── JSON Import ──────────────────────────────────
+function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.inventory && !data.archive) throw new Error('Ungültiges Format');
+      const invCount = (data.inventory||[]).length;
+      const archCount = (data.archive||[]).length;
+      const mode = confirm(
+        `Gefunden: ${invCount} Bestand-Einträge, ${archCount} Archiv-Einträge.\n\n` +
+        `OK = Bestehende Daten ERSETZEN\nAbbrechen = Mit bestehenden Daten ZUSAMMENFÜHREN`
+      );
+      if (mode) {
+        // Replace
+        ls.set(K.inv, data.inventory || []);
+        ls.set(K.arch, data.archive || []);
+      } else {
+        // Merge by id
+        const existInv = ls.get(K.inv);
+        const existArch = ls.get(K.arch);
+        const existInvIds = new Set(existInv.map(i=>i.id));
+        const existArchIds = new Set(existArch.map(i=>i.id));
+        const merged = [...existInv, ...(data.inventory||[]).filter(i=>!existInvIds.has(i.id))];
+        const mergedArch = [...existArch, ...(data.archive||[]).filter(i=>!existArchIds.has(i.id))];
+        ls.set(K.inv, merged);
+        ls.set(K.arch, mergedArch);
+      }
+      renderEinstellungen();
+      alert('✅ Import erfolgreich!');
+    } catch(err) {
+      alert('❌ Fehler beim Import: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ── CSV Export ────────────────────────────────────
+function exportCSV(which) {
+  const items = ls.get(which === 'inv' ? K.inv : K.arch);
+  if (!items.length) { alert('Keine Daten zum Exportieren.'); return; }
+
+  const escCSV = v => `"${String(v||'').replace(/"/g,'""')}"`;
+
+  let headers, rows;
+  if (which === 'inv') {
+    headers = ['Kategorie','Marke','Modell','Seriennummer','Baujahr','Farbe',
+      'Zustand','Kaufpreis (€)','Kaufdatum','Kalk. Verkaufspreis (€)',
+      'Beschreibung','Zubehör','Standort','Fotos (Anzahl)','Erfasst am'];
+    rows = items.map(i => [
+      i.cat?.replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim()||'',
+      i.brand||'', i.model||'', i.serial||'', i.year||'', i.color||'',
+      i.cond||'', i.buy||0, i.buydate||'', i.sell||0,
+      i.desc||'', i.acc||'', i.loc||'',
+      (i.photos||[]).length, i.created||''
+    ].map(escCSV).join(';'));
+  } else {
+    headers = ['Kategorie','Marke','Modell','Zustand','Kaufpreis (€)',
+      'Art der Weitergabe','Erlös (€)','Datum','Notiz',
+      'Kalk. Verkaufspreis (€)','Beschreibung'];
+    rows = items.map(i => [
+      i.cat?.replace(/🎸|🎹|🥁|🎷|🎻|🎤|🔊|🎵/g,'').trim()||'',
+      i.brand||'', i.model||'', i.cond||'',
+      i.buy||0, i.archType||'', i.archPrice||0,
+      i.archDate||'', i.archNote||'',
+      i.sell||0, i.desc||''
+    ].map(escCSV).join(';'));
+  }
+
+  const csvContent = '\uFEFF' + [headers.map(escCSV).join(';'), ...rows].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `instrumente_${which==='inv'?'bestand':'archiv'}_${today()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Alle Daten löschen ────────────────────────────
+function clearAllData() {
+  if (!confirm('⚠️ Wirklich ALLE Daten löschen?\n\nBestand und Archiv werden vollständig zurückgesetzt. Diese Aktion kann nicht rückgängig gemacht werden!')) return;
+  if (!confirm('Letzter Schritt: Bitte bestätigen — alle Daten wirklich löschen?')) return;
+  ls.set(K.inv, []);
+  ls.set(K.arch, []);
+  renderEinstellungen();
+  alert('Alle Daten wurden gelöscht.');
+}
+
+// ══════════════════════════════════════════════════
+//  LIGHTBOX
+// ══════════════════════════════════════════════════
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src=src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+// ══════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════
+renderBestand();
+</script>
+</body>
+</html>
