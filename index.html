@@ -435,6 +435,7 @@ textarea.form-input{resize:vertical;min-height:80px;padding:7px 0 10px;}
       <div class="form-section-header">Fotos</div>
       <div class="card-pad" style="padding:14px 16px 10px;">
         <div class="photo-grid" id="f-photos-grid"></div>
+        <div id="photo-status" style="font-size:0.72rem;color:var(--lbl2);min-height:1.1em;margin-top:4px;"></div>
         <input type="file" id="f-photo-input" accept="image/*" multiple style="display:none" onchange="handlePhotoUpload(event)">
       </div>
     </div>
@@ -539,7 +540,17 @@ textarea.form-input{resize:vertical;min-height:80px;padding:7px 0 10px;}
 const _mem = {};
 const _ls = {
   getItem: k => { try { return window.localStorage.getItem(k); } catch(e) { return _mem[k]!==undefined?_mem[k]:null; } },
-  setItem: (k,v) => { try { window.localStorage.setItem(k,v); } catch(e) { _mem[k]=v; } },
+  setItem: (k,v) => {
+    try {
+      window.localStorage.setItem(k,v);
+      return true;
+    } catch(e) {
+      // Fallback hält die Daten nur bis zum Neuladen im Arbeitsspeicher.
+      // Der Aufrufer erhält false und kann den Benutzer darüber informieren.
+      _mem[k]=v;
+      return false;
+    }
+  },
   removeItem: k => { try { window.localStorage.removeItem(k); } catch(e) { delete _mem[k]; } },
 };
 const ls = {
@@ -582,20 +593,87 @@ function nav(id) {
 //  PHOTO HANDLING (base64 in localStorage)
 // ══════════════════════════════════════════════════
 let _editPhotos = []; // base64 strings currently in form
+const PHOTO_MAX_BYTES = 200 * 1024;
+const PHOTO_MAX_DIMENSION = 1600;
 
-function handlePhotoUpload(e) {
-  const files = Array.from(e.target.files);
-  let loaded=0;
-  files.forEach(f => {
+function setPhotoStatus(message, isError=false) {
+  const el = document.getElementById('photo-status');
+  if(!el) return;
+  el.textContent = message || '';
+  el.style.color = isError ? 'var(--red)' : 'var(--lbl2)';
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = ev => {
-      _editPhotos.push(ev.target.result);
-      loaded++;
-      if(loaded===files.length) renderFormPhotos();
-    };
-    reader.readAsDataURL(f);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Foto konnte nicht gelesen werden.'));
+    reader.readAsDataURL(file);
   });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Foto konnte nicht verarbeitet werden.'));
+    img.src = src;
+  });
+}
+
+function canvasDataURL(canvas, quality) {
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+async function compressPhoto(file) {
+  const original = await readFileAsDataURL(file);
+  const img = await loadImage(original);
+  const scale = Math.min(1, PHOTO_MAX_DIMENSION / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+  let canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+  canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+  let ctx = canvas.getContext('2d', { alpha:false });
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  let quality = 0.82;
+  let dataUrl = canvasDataURL(canvas, quality);
+  while (dataUrl.length * 0.75 > PHOTO_MAX_BYTES && quality > 0.22) {
+    quality -= 0.08;
+    dataUrl = canvasDataURL(canvas, quality);
+  }
+  while (dataUrl.length * 0.75 > PHOTO_MAX_BYTES && canvas.width > 640) {
+    const resized = document.createElement('canvas');
+    resized.width = Math.round(canvas.width * 0.82);
+    resized.height = Math.round(canvas.height * 0.82);
+    const rctx = resized.getContext('2d', { alpha:false });
+    rctx.fillStyle = '#ffffff';
+    rctx.fillRect(0, 0, resized.width, resized.height);
+    rctx.drawImage(canvas, 0, 0, resized.width, resized.height);
+    canvas = resized;
+    dataUrl = canvasDataURL(canvas, 0.22);
+  }
+  if(dataUrl.length * 0.75 > PHOTO_MAX_BYTES) {
+    throw new Error('Foto konnte nicht auf 200 KB komprimiert werden.');
+  }
+  return dataUrl;
+}
+
+async function handlePhotoUpload(e) {
+  const files = Array.from(e.target.files || []);
   e.target.value='';
+  if(!files.length) return;
+  setPhotoStatus('Fotos werden komprimiert …');
+  try {
+    const compressed = [];
+    for(const file of files) compressed.push(await compressPhoto(file));
+    _editPhotos.push(...compressed);
+    renderFormPhotos();
+    setPhotoStatus(`${compressed.length} Foto${compressed.length===1?'':'s'} komprimiert und bereit zum Speichern (max. 200 KB je Foto).`);
+  } catch(err) {
+    setPhotoStatus(err.message || 'Foto konnte nicht verarbeitet werden.', true);
+  }
 }
 
 function renderFormPhotos() {
@@ -641,6 +719,7 @@ function openAddModal(editIdx=null) {
   document.getElementById('f-acc').value = item?.acc||'';
   document.getElementById('f-loc').value = item?.loc||'';
   _editPhotos = item?.photos ? [...item.photos] : [];
+  setPhotoStatus(_editPhotos.length ? `${_editPhotos.length} gespeicherte${_editPhotos.length===1?'s':''} Foto${_editPhotos.length===1?'':'s'}. Neue Fotos werden automatisch auf max. 200 KB komprimiert.` : 'Neue Fotos werden automatisch auf max. 200 KB komprimiert.');
   renderFormPhotos();
   document.getElementById('addModal').classList.add('open');
 }
@@ -673,7 +752,12 @@ function saveInstrument() {
   };
   const inv = ls.get(K.inv);
   if(_editIdx!==null) inv[_editIdx]=item; else inv.push(item);
-  ls.set(K.inv, inv);
+  const persisted = ls.set(K.inv, inv);
+  if(persisted === false) {
+    setPhotoStatus('Speicherfehler: Der Browser-Speicher ist voll. Bitte zuerst eine Sicherung exportieren oder alte Daten/Fotos löschen.', true);
+    alert('Die Änderungen konnten nicht dauerhaft gespeichert werden, weil der Browser-Speicher voll ist. Bitte exportiere zuerst eine Sicherung oder lösche nicht benötigte Daten/Fotos.');
+    return;
+  }
   closeAddModal();
   renderBestand();
 }
